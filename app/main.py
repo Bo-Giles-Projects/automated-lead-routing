@@ -3,7 +3,8 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 
-from app.schemas import LeadCreate, LeadReceipt
+from app.enrichment import analyze_lead_mock
+from app.schemas import LeadAnalysis, LeadCreate, LeadReceipt
 
 
 app = FastAPI(
@@ -39,3 +40,7 @@ def create_lead(lead: LeadCreate) -> LeadReceipt:
         "This milestone does not store or process the lead."    
         ),
     ) 
+
+@app.post("/api/leads/analyze", response_model=LeadAnalysis, tags=["Leads"])
+def preview_lead_analysis(lead: LeadCreate) -> LeadAnalysis:
+    return analyze_lead_mock(lead)

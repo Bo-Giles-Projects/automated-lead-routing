@@ -6,7 +6,7 @@ personalized follow-ups with human oversight.
 
 ## Project Status
 
-**Current milestone: Lead capture and validation.**
+**Current milestone: Lead capture, validation, and mock analysis.**
 
 Implemented:
 - FastAPI endpoint for customer inquiries
@@ -14,12 +14,15 @@ Implemented:
 - Supported company-size and service categories
 - Unique receipt IDs and UTC timestamps
 - Interactive API documentation
+- `POST /api/leads/analyze` previews urgency,
+fit score, department,
+a short summary, and an email draft using local Python rules.
 
 Planned:
 - Database storage
 - AI-powered summaries, urgency classification, and lead-fit scoring
 - CRM integration and internal sales alerts
-- Personalized follow-up email drafts
+- AI-generated personalized follow-up email drafts
 - Human approval before email delivery
 
 ## Business Value
@@ -74,6 +77,7 @@ Expand `POST /api/leads`, select **Try it out**, and submit:
   "project_details": "Several employees cannot access shared files, and a ransom note appeared on one workstation this morning. We need urgent help assessing the incident and restoring business operations."
 }
 ```
+Submit the same JSON to POST /api/leads/analyze to preview the analysis. This sample returns High urgency, a fit score of 90, and Security as the recommended department.
 
 A valid request returns HTTP 200 with a validation receipt.
 An invalid email or missing required field returns HTTP 422.
@@ -95,8 +99,9 @@ Planned AI safeguards:
 
 ## Current Limitations
 
-The API validates requests and returns receipts. It does not yet
-store leads, analyze them with AI, send alerts, or send emails.
+Lead analysis currently uses local rules and runs without an API key.
+The preview returns an email draft for review. Lead storage, alerts,
+and email delivery are planned.
 
 This is a local development project. Authentication and production
 abuse controls are not implemented.
