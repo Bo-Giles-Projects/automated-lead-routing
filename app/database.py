@@ -1,8 +1,9 @@
 import sqlite3
 from contextlib import closing
 from pathlib import Path
-
 from app.schemas import LeadCreate, LeadReceipt
+from uuid import UUID
+from app.schemas import LeadAnalysis, LeadCreate, LeadReceipt, LeadAnalysis, LeadCreate, LeadReceipt
 
 DATABASE_PATH = Path(__file__).resolve().parents[1] / "data" / "leads.db"
 

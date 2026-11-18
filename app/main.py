@@ -1,16 +1,13 @@
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
-
-from fastapi import FastAPI
-
+from fastapi import FastAPI, HTTPException
 from app.enrichment import analyze_lead_mock
 from app.schemas import LeadAnalysis, LeadCreate, LeadReceipt
-
 from os import getenv
-
 from app.openai_enrichment import analyze_lead_openai
-
 from app.database import get_lead, get_lead_analysis, save_lead, save_lead_analysis
+from app.review import router as review_router
+from app.outbox import router as outbox_router
 
 app = FastAPI(
     title="Automated Lead Routing & Follow-Up",
@@ -81,3 +78,6 @@ def read_saved_analysis(lead_id: UUID) -> LeadAnalysis:
         raise HTTPException(status_code=404, detail="No saved analysis for this lead.")
 
     return analysis
+
+app.include_router(review_router)
+app.include_router(outbox_router)
