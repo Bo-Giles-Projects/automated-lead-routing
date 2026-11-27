@@ -86,6 +86,10 @@ An invalid email or missing required field returns HTTP 422.
 
 1. `POST /api/leads` saves the lead and returns a `lead_id`.
 2. `POST /api/leads/{lead_id}/analyze` saves an analysis with an email draft.
+   Running it again replaces the draft, but only until a person acts on it:
+   once the draft is approved, edited, or sent, re-analysis returns HTTP 409
+   so a human decision is never overwritten. A rejected draft can still be
+   replaced with a fresh one.
 3. `GET /api/leads/{lead_id}/review` shows the current draft and its status
    (`pending`, `approved`, or `rejected`).
 4. To change the wording, `PUT /api/leads/{lead_id}/draft` with the draft you

@@ -177,3 +177,93 @@ def test_refused_edits_are_not_recorded(client, analyzed_lead):
 
 def test_edit_history_for_unanalyzed_lead_returns_404(client, lead_id):
     assert client.get(f"/api/leads/{lead_id}/draft/edits").status_code == 404
+
+
+# --- Re-analysis -------------------------------------------------------------
+
+def reanalyze(client, lead_id):
+    return client.post(f"/api/leads/{lead_id}/analyze")
+
+
+def test_reanalysis_is_allowed_before_any_review(client, analyzed_lead):
+    lead_id, _ = analyzed_lead
+    assert reanalyze(client, lead_id).status_code == 200
+
+
+def test_reanalysis_is_allowed_after_rejection(client, analyzed_lead):
+    """A rejected draft can be replaced with a fresh one."""
+    lead_id, draft = analyzed_lead
+    review(client, lead_id, "rejected", draft)
+
+    assert reanalyze(client, lead_id).status_code == 200
+
+
+def test_reanalysis_after_approval_is_refused(client, analyzed_lead):
+    lead_id, draft = analyzed_lead
+    review(client, lead_id, "approved", draft)
+
+    assert reanalyze(client, lead_id).status_code == 409
+    assert status(client, lead_id)["decision"] == "approved"
+
+
+def test_reanalysis_after_edit_keeps_the_edit(client, analyzed_lead):
+    lead_id, draft = analyzed_lead
+    edit(client, lead_id, draft, EDITED)
+
+    assert reanalyze(client, lead_id).status_code == 409
+    assert status(client, lead_id)["draft"] == EDITED
+
+
+def test_reanalysis_cannot_restore_an_approval_the_reviewer_edited_away(client, analyzed_lead):
+    """Approve the AI draft, edit it, re-analyze: the AI's wording (still
+    approved from before) must not come back and become sendable."""
+    lead_id, draft = analyzed_lead
+    review(client, lead_id, "approved", draft)
+    edit(client, lead_id, draft, EDITED)
+
+    assert reanalyze(client, lead_id).status_code == 409
+    assert status(client, lead_id) | {"reviewed_at": None} == {
+        "lead_id": lead_id, "draft": EDITED, "decision": "pending", "reviewed_at": None,
+    }
+    assert send(client, lead_id).status_code == 409
+
+
+def test_reanalysis_after_send_is_refused(client, analyzed_lead, db_path):
+    lead_id, draft = analyzed_lead
+    review(client, lead_id, "approved", draft)
+    send(client, lead_id)
+
+    assert reanalyze(client, lead_id).status_code == 409
+    assert len(outbox_rows(db_path)) == 1
+
+
+def test_locked_lead_is_refused_before_calling_the_ai(client, analyzed_lead, monkeypatch):
+    lead_id, draft = analyzed_lead
+    review(client, lead_id, "approved", draft)
+
+    def fail(_lead):
+        raise AssertionError("analysis should not run for a locked lead")
+
+    monkeypatch.setattr("app.main.analyze_lead_mock", fail)
+    assert reanalyze(client, lead_id).status_code == 409
+
+
+def test_review_during_slow_analysis_is_not_overwritten(client, analyzed_lead, monkeypatch):
+    """If a reviewer approves while the AI is still working, the new
+    analysis must not replace the draft they approved."""
+    lead_id, draft = analyzed_lead
+    import app.main
+    real = app.main.analyze_lead_mock
+
+    def approve_mid_analysis(lead):
+        review(client, lead_id, "approved", draft)
+        result = real(lead)
+        return result.model_copy(
+            update={"follow_up_draft": result.follow_up_draft.model_copy(update={"subject": "AI v2"})}
+        )
+
+    monkeypatch.setattr("app.main.analyze_lead_mock", approve_mid_analysis)
+
+    assert reanalyze(client, lead_id).status_code == 409
+    assert status(client, lead_id)["draft"] == draft
+    assert status(client, lead_id)["decision"] == "approved"
