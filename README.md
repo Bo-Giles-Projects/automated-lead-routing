@@ -97,6 +97,9 @@ provider, so it needs no API key and never touches `data/leads.db`.
 queued only for the exact saved draft a reviewer approved, a changed
 draft needs fresh approval, and repeated sends queue just one email.
 
+GitHub Actions runs the suite on Python 3.11 and 3.13 for every pull
+request and every push to `main` (`.github/workflows/tests.yml`).
+
 ## Responsible Automation
 
 Current safeguards:
