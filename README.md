@@ -82,6 +82,21 @@ Submit the same JSON to POST /api/leads/analyze to preview the analysis. This sa
 A valid request returns HTTP 200 with a validation receipt.
 An invalid email or missing required field returns HTTP 422.
 
+## Run the Tests
+
+Install the development dependencies and run the suite:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m pytest
+```
+
+Each test uses its own temporary SQLite database and the mock analysis
+provider, so it needs no API key and never touches `data/leads.db`.
+`tests/test_approval.py` covers the human-approval rules: an email is
+queued only for the exact saved draft a reviewer approved, a changed
+draft needs fresh approval, and repeated sends queue just one email.
+
 ## Responsible Automation
 
 Current safeguards:
