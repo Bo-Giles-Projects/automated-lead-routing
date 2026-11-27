@@ -8,6 +8,7 @@ from app.openai_enrichment import analyze_lead_openai
 from app.database import get_lead, get_lead_analysis, save_lead, save_lead_analysis
 from app.review import router as review_router
 from app.outbox import router as outbox_router
+from app.drafts import router as drafts_router
 
 app = FastAPI(
     title="Automated Lead Routing & Follow-Up",
@@ -81,3 +82,4 @@ def read_saved_analysis(lead_id: UUID) -> LeadAnalysis:
 
 app.include_router(review_router)
 app.include_router(outbox_router)
+app.include_router(drafts_router)

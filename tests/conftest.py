@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.database
+import app.drafts
 import app.outbox
 import app.review
 from app.main import app as fastapi_app
@@ -23,11 +24,11 @@ SAMPLE_LEAD = {
 def db_path(tmp_path, monkeypatch):
     """Point every module at a throwaway SQLite file.
 
-    review.py and outbox.py import DATABASE_PATH by name, so each module's
+    review.py, outbox.py and drafts.py import DATABASE_PATH by name, so each module's
     copy has to be patched, not only app.database's.
     """
     path = tmp_path / "data" / "leads.db"
-    for module in (app.database, app.review, app.outbox):
+    for module in (app.database, app.review, app.outbox, app.drafts):
         monkeypatch.setattr(module, "DATABASE_PATH", path)
     return path
 
