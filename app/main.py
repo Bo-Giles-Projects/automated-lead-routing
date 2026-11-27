@@ -5,9 +5,16 @@ from app.enrichment import analyze_lead_mock
 from app.schemas import LeadAnalysis, LeadCreate, LeadReceipt
 from os import getenv
 from app.openai_enrichment import analyze_lead_openai
-from app.database import get_lead, get_lead_analysis, save_lead, save_lead_analysis
+from app.database import (
+    draft_is_locked,
+    get_lead,
+    get_lead_analysis,
+    save_lead,
+    save_lead_analysis,
+)
 from app.review import router as review_router
 from app.outbox import router as outbox_router
+from app.drafts import router as drafts_router
 
 app = FastAPI(
     title="Automated Lead Routing & Follow-Up",
@@ -61,14 +68,26 @@ def preview_lead_analysis(lead: LeadCreate) -> LeadAnalysis:
             detail="OpenAI could not return a valid lead analysis.",
         ) from None
 
+DRAFT_LOCKED_DETAIL = (
+    "This lead's draft has already been approved, edited, or sent, "
+    "so it can't be replaced by a new analysis."
+)
+
+
 @app.post("/api/leads/{lead_id}/analyze", response_model=LeadAnalysis, tags=["Leads"])
 def analyze_saved_lead(lead_id: UUID) -> LeadAnalysis:
     lead = get_lead(lead_id)
     if lead is None:
         raise HTTPException(status_code=404, detail="Lead not found.")
 
+    # Check before calling the AI so a locked lead never costs an API call,
+    # then again at save time in case a review landed while the AI was running.
+    if draft_is_locked(lead_id):
+        raise HTTPException(status_code=409, detail=DRAFT_LOCKED_DETAIL)
+
     analysis = preview_lead_analysis(lead)
-    save_lead_analysis(lead_id, analysis)
+    if not save_lead_analysis(lead_id, analysis, unless_locked=True):
+        raise HTTPException(status_code=409, detail=DRAFT_LOCKED_DETAIL)
     return analysis
 
 @app.get("/api/leads/{lead_id}/analysis", response_model=LeadAnalysis, tags=["Leads"])
@@ -81,3 +100,4 @@ def read_saved_analysis(lead_id: UUID) -> LeadAnalysis:
 
 app.include_router(review_router)
 app.include_router(outbox_router)
+app.include_router(drafts_router)

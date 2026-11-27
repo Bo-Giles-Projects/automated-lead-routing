@@ -82,6 +82,36 @@ Submit the same JSON to POST /api/leads/analyze to preview the analysis. This sa
 A valid request returns HTTP 200 with a validation receipt.
 An invalid email or missing required field returns HTTP 422.
 
+## Review, Edit, and Send a Draft
+
+1. `POST /api/leads` saves the lead and returns a `lead_id`.
+2. `POST /api/leads/{lead_id}/analyze` saves an analysis with an email draft.
+   Running it again replaces the draft, but only until a person acts on it:
+   once the draft is approved, edited, or sent, re-analysis returns HTTP 409
+   so a human decision is never overwritten. A rejected draft can still be
+   replaced with a fresh one.
+3. `GET /api/leads/{lead_id}/review` shows the current draft and its status
+   (`pending`, `approved`, or `rejected`).
+4. To change the wording, `PUT /api/leads/{lead_id}/draft` with the draft you
+   started from and your new text:
+
+   ```json
+   {
+     "current_draft": {"subject": "...", "body": "..."},
+     "new_draft": {"subject": "...", "body": "..."}
+   }
+   ```
+
+   The edited draft is always `pending`, even if it was approved before.
+   If `current_draft` no longer matches the saved draft (someone else edited
+   it), the edit is refused with HTTP 409; reload and try again.
+   `GET /api/leads/{lead_id}/draft/edits` lists every edit.
+5. `POST /api/leads/{lead_id}/review` with `"decision": "approved"` and the
+   exact current draft approves it.
+6. `POST /api/leads/{lead_id}/send` queues a simulated email. It returns
+   HTTP 409 unless the current draft is approved. Once an email is queued,
+   the draft can no longer be edited.
+
 ## Run the Tests
 
 Install the development dependencies and run the suite:

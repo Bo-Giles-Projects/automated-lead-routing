@@ -25,9 +25,46 @@ def get_lead(lead_id: UUID) -> LeadCreate | None:
     return LeadCreate.model_validate(dict(row)) if row is not None else None
 
 
-def save_lead_analysis(lead_id: UUID, analysis: LeadAnalysis) -> None:
+def _draft_is_locked(connection: sqlite3.Connection, lead_id: UUID) -> bool:
+    """True once a person has acted on the lead's draft: approved it, edited it,
+    or had an email queued from it. Rejections alone do not lock the draft."""
+    tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' "
+            "AND name IN ('draft_reviews', 'draft_edits', 'email_outbox')"
+        )
+    }
+    checks = {
+        "draft_reviews": "SELECT 1 FROM draft_reviews WHERE lead_id = ? AND decision = 'approved'",
+        "draft_edits": "SELECT 1 FROM draft_edits WHERE lead_id = ?",
+        "email_outbox": "SELECT 1 FROM email_outbox WHERE lead_id = ?",
+    }
+    return any(
+        connection.execute(query, (str(lead_id),)).fetchone() is not None
+        for table, query in checks.items()
+        if table in tables
+    )
+
+
+def draft_is_locked(lead_id: UUID) -> bool:
+    if not DATABASE_PATH.is_file():
+        return False
+    with closing(sqlite3.connect(DATABASE_PATH)) as connection:
+        return _draft_is_locked(connection, lead_id)
+
+
+def save_lead_analysis(
+    lead_id: UUID, analysis: LeadAnalysis, *, unless_locked: bool = False
+) -> bool:
+    """Save or replace a lead's analysis. With unless_locked=True, refuse
+    (return False) when a person has already acted on the current draft."""
     with closing(sqlite3.connect(DATABASE_PATH)) as connection, connection:
         connection.execute("PRAGMA foreign_keys = ON")
+        # Lock writes so a review, edit or send cannot land between the check and the save.
+        connection.execute("BEGIN IMMEDIATE")
+        if unless_locked and _draft_is_locked(connection, lead_id):
+            return False
         connection.execute("""
             CREATE TABLE IF NOT EXISTS lead_analyses (
                 lead_id TEXT PRIMARY KEY REFERENCES leads(id),
@@ -43,6 +80,7 @@ def save_lead_analysis(lead_id: UUID, analysis: LeadAnalysis) -> None:
             """,
             (str(lead_id), analysis.model_dump_json()),
         )
+    return True
 
 def save_lead(lead: LeadCreate, receipt: LeadReceipt) -> None:
     DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
